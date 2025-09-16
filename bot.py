@@ -51,22 +51,19 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "awaiting_file" in context.user_data and context.user_data["awaiting_file"]:
         context.user_data["awaiting_file"] = False
 
-       
-        if not update.message.document.file_name.endswith(".xlsx"):
-            await update.message.reply_text("⚠️ يرجى إرسال ملف بصيغة Excel (xlsx) فقط")
+        if not update.message.document.file_name.endswith(('.xlsx', '.xls')):
+            await update.message.reply_text("⚠️ يرجى إرسال ملف بصيغة Excel (xlsx أو xls) فقط")
             return
 
-    
         file = await update.message.document.get_file()
         file_path = f"database_{update.message.document.file_name}"
         await file.download_to_drive(file_path)
 
         try:
-           
             excel_data.clear()
             xls = pd.ExcelFile(file_path)
             for sheet_name in xls.sheet_names:
-                excel_data[sheet_name] = xls.parse(sheet_name)
+                excel_data[sheet_name] = pd.read_excel(file_path, sheet_name=sheet_name)
             
             os.remove(file_path)
             await update.message.reply_text("✅ تم رفع قاعدة البيانات بنجاح")
@@ -81,30 +78,28 @@ async def search_zain(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.message.reply_text("🔍 أرسل الرقم الذي تريد البحث عنه (بدون رمز الدولة):")
     context.user_data["awaiting_number"] = True
 
+def split_message(text: str, max_length: int = 4096):
+    """تقسيم الرسالة إذا تجاوزت الحد المسموح في Telegram."""
+    return [text[i:i+max_length] for i in range(0, len(text), max_length)]
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "awaiting_number" in context.user_data and context.user_data["awaiting_number"]:
         number = update.message.text.strip()
         context.user_data["awaiting_number"] = False
 
-       
         number = ''.join(filter(str.isdigit, number))
 
-       
         results = []
         for sheet_name, sheet_data in excel_data.items():
-           
-            if "Unnamed: 6" in sheet_data.columns:
-               
-                matches = sheet_data[sheet_data["Unnamed: 6"].astype(str).str.contains(number, na=False)]
+            for col in sheet_data.columns:
+                matches = sheet_data[sheet_data[col].astype(str).str.contains(number, na=False)]
                 if not matches.empty:
-                   
                     formatted_result = f"📁 البيانات من الملف: {sheet_name}\n"
                     for _, row in matches.iterrows():
                         row_data = "\n".join([f"📌 {col}: {value}" for col, value in row.items() if pd.notna(value)])
                         formatted_result += f"{row_data}\n{'-' * 30}\n"
                     results.append(formatted_result)
 
-       
         if results:
             full_text = "📋 نتائج البحث:\n" + "\n\n".join(results)
             for part in split_message(full_text):
@@ -114,13 +109,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("⚠️ لم يتم طلب أي عملية بحث")
 
-app = ApplicationBuilder().token(BOT_TOKEN).build()
+def main():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("upload", upload))
-app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
-app.add_handler(CallbackQueryHandler(search_zain, pattern="search_zain"))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("upload", upload))
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
+    app.add_handler(CallbackQueryHandler(search_zain, pattern="search_zain"))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-print("🚀 البوت شغال الآن...")
-app.run_polling()
+    print("🚀 البوت شغال الآن...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
