@@ -11,8 +11,8 @@ import pandas as pd
 import os
 
 # توكن البوت ومعرف المالك
-BOT_TOKEN = "توكنك"
-OWNER_ID = ايديك  # ضع ايديك هنا
+BOT_TOKEN = "7379071444:AAEM87hwjQhs7I2y2_VVJqWhO8rGV-iLXVs"
+OWNER_ID = 1484010221  # ضع ايديك هنا
 
 excel_data = {}
 user_data = {}
